@@ -1,0 +1,48 @@
+:root {
+    --primary-color: #121212;
+    --secondary-color: #1e1e1e;
+    --text-color: #e0e0e0;
+    --tile-size: calc(100% / 6 - 20px);
+    --tile-bg-color:#343434;
+    --tile-bg-color-hover:silver;
+    --image-bg-color: #1c1c27;
+    --image-bg-color-hover: #252533;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Roboto', Arial, sans-serif;
+}
+
+body {background-color: var(--primary-color)}
+
+.flex-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.tile {
+    height:200px;
+    width:200px;
+    text-align: center;
+    box-shadow: 0px 0px 10px -5px var(--tile-bg-color);
+    border-radius: 25%
+}
+
+.tile:hover {
+    box-shadow: 0px 0px 10px -5px var(--tile-bg-color-hover);
+}
+
+.tile img {
+    border-radius: 25%;
+    background-color:var(--image-bg-color)
+}
+
+.tile img:hover {
+    background-color:var(--image-bg-color-hover)
+}
