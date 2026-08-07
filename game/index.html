@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Puzzle</title>
+    <script src="./ivank.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #121212;
+            color: #e0e0e0;
+            font-family: 'Roboto', 'Segoe UI', sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ---- Top bar ---- */
+        .top-bar {
+            background: #1e1e1e;
+            padding: 8px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        .top-bar h1 {
+            font-size: 20px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+        .settings {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        .toggle-label input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #bb86fc;
+        }
+
+        /* ---- Main content ---- */
+        .main-content {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .side-panel {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 16px;
+            width: 200px;
+            height: 600px; /* match canvas height */
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+        }
+        .side-panel .panel-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #9e9e9e;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .center-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .canvas-container {
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+            line-height: 0; /* remove gap below canvas */
+        }
+
+        .message-box {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 12px 16px;
+            width: 100%;
+            min-height: 60px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            font-size: 14px;
+            color: #9e9e9e;
+        }
+        .message-box .label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+            color: #6e6e6e;
+        }
+
+        /* ---- Input mode buttons ---- */
+        .input-pills {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .input-pill {
+            background: #2d2d2d;
+            border: none;
+            color: #e0e0e0;
+            padding: 6px 18px;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        .input-pill.active {
+            background: #bb86fc;
+            color: #121212;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(187,134,252,0.4);
+        }
+    </style>
+</head>
+<body>
+    <!-- Top bar -->
+    <div class="top-bar">
+        <h1>Grid Puzzle</h1>
+        <div class="settings">
+            <label class="toggle-label">
+                <input type="checkbox" id="fpsToggle">
+                <span>Show FPS</span>
+            </label>
+        </div>
+    </div>
+
+    <!-- Main layout -->
+    <div class="main-content">
+        <!-- Left panel -->
+        <div class="side-panel" id="leftPanel">
+            <div class="panel-title">Player / Stage</div>
+            <!-- Empty container for stats/skills -->
+        </div>
+
+        <!-- Center column: canvas + message box -->
+        <div class="center-column">
+            <!-- Input mode pills -->
+            <div class="input-pills">
+                <button class="input-pill active" id="touchBtn">Touch</button>
+                <button class="input-pill" id="keyboardBtn">Keyboard</button>
+            </div>
+
+            <!-- Canvas container (ivank.js canvas will be moved here) -->
+            <div class="canvas-container" id="canvasContainer"></div>
+
+            <!-- Message box -->
+            <div class="message-box">
+                <div class="label">Messages</div>
+                <div id="messageText"></div>
+            </div>
+        </div>
+
+        <!-- Right panel -->
+        <div class="side-panel" id="rightPanel">
+            <div class="panel-title">Enemy</div>
+            <!-- Empty container for enemy info -->
+        </div>
+    </div>
+
+    <script>
+        // ----- Game Constants -----
+        const GRID_SIZE = 15;
+        const TILE_SIZE = 40;         // canvas = 600x600
+        const CANVAS_SIZE = GRID_SIZE * TILE_SIZE;
+
+        // Player position (0-indexed, x = col, y = row)
+        let playerX = 7;
+        let playerY = 7;
+
+        // Input mode ('touch' or 'keyboard')
+        let inputMode = 'touch';
+
+        // FPS display
+        let showFPS = false;
+        let fpsCounter = 0;
+        let lastFPSTime = performance.now();
+        let fpsDisplay = 0;
+
+        // ----- DOM Elements -----
+        const fpsToggle = document.getElementById('fpsToggle');
+        const touchBtn = document.getElementById('touchBtn');
+        const keyboardBtn = document.getElementById('keyboardBtn');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const messageText = document.getElementById('messageText');
+
+        // ----- ivank.js Setup -----
+        ivank.canvas(CANVAS_SIZE, CANVAS_SIZE);   // creates canvas, appends to body
+        const canvas = ivank.canvasElement;
+        const ctx = ivank.ctx;
+
+        // Move canvas into our container
+        canvasContainer.appendChild(canvas);
+
+        // ----- Input Mode Switching -----
+        function setInputMode(mode) {
+            inputMode = mode;
+            touchBtn.classList.toggle('active', mode === 'touch');
+            keyboardBtn.classList.toggle('active', mode === 'keyboard');
+            messageText.textContent = mode === 'touch' ? 'Tap adjacent tile to move' : 'Use arrow keys to move';
+        }
+
+        touchBtn.addEventListener('click', () => setInputMode('touch'));
+        keyboardBtn.addEventListener('click', () => setInputMode('keyboard'));
+
+        // ----- FPS Toggle -----
+        fpsToggle.addEventListener('change', (e) => {
+            showFPS = e.target.checked;
+        });
+
+        // ----- Movement Logic -----
+        function movePlayer(dx, dy) {
+            const newX = playerX + dx;
+            const newY = playerY + dy;
+            if (newX >= 0 && newX < GRID_SIZE && newY >= 0 && newY < GRID_SIZE) {
+                playerX = newX;
+                playerY = newY;
+            }
+        }
+
+        // ----- Keyboard Input -----
+        document.addEventListener('keydown', (e) => {
+            if (inputMode !== 'keyboard') return;
+            switch (e.key) {
+                case 'ArrowUp':    e.preventDefault(); movePlayer(0, -1); break;
+                case 'ArrowDown':  e.preventDefault(); movePlayer(0, 1); break;
+                case 'ArrowLeft':  e.preventDefault(); movePlayer(-1, 0); break;
+                case 'ArrowRight': e.preventDefault(); movePlayer(1, 0); break;
+            }
+        });
+
+        // ----- Touch / Mouse Input (canvas-relative) -----
+        canvas.addEventListener('click', (e) => {
+            if (inputMode !== 'touch') return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;   // canvas physical pixels vs CSS size
+            const scaleY = canvas.height / rect.height;
+            const mouseCanvasX = (e.clientX - rect.left) * scaleX;
+            const mouseCanvasY = (e.clientY - rect.top) * scaleY;
+            const col = Math.floor(mouseCanvasX / TILE_SIZE);
+            const row = Math.floor(mouseCanvasY / TILE_SIZE);
+
+            // Move only if adjacent (Manhattan distance == 1)
+            const dx = col - playerX;
+            const dy = row - playerY;
+            if (Math.abs(dx) + Math.abs(dy) === 1) {
+                movePlayer(dx, dy);
+            }
+        });
+
+        // Also support touchstart for mobile responsiveness
+        canvas.addEventListener('touchstart', (e) => {
+            if (inputMode !== 'touch') return;
+            e.preventDefault(); // prevent scrolling
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const touchCanvasX = (touch.clientX - rect.left) * scaleX;
+            const touchCanvasY = (touch.clientY - rect.top) * scaleY;
+            const col = Math.floor(touchCanvasX / TILE_SIZE);
+            const row = Math.floor(touchCanvasY / TILE_SIZE);
+
+            const dx = col - playerX;
+            const dy = row - playerY;
+            if (Math.abs(dx) + Math.abs(dy) === 1) {
+                movePlayer(dx, dy);
+            }
+        }, { passive: false });
+
+        // ----- Drawing Function -----
+        function drawGrid() {
+            const w = CANVAS_SIZE, h = CANVAS_SIZE;
+            ctx.clearRect(0, 0, w, h);
+
+            // Background
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, w, h);
+
+            // Grid lines
+            ctx.strokeStyle = '#2a2a2a';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i <= GRID_SIZE; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * TILE_SIZE, 0);
+                ctx.lineTo(i * TILE_SIZE, h);
+                ctx.stroke();
+                ctx.moveTo(0, i * TILE_SIZE);
+                ctx.lineTo(w, i * TILE_SIZE);
+                ctx.stroke();
+            }
+
+            // Player (green square)
+            const margin = 3;
+            const px = playerX * TILE_SIZE + margin;
+            const py = playerY * TILE_SIZE + margin;
+            const size = TILE_SIZE - margin * 2;
+            ctx.fillStyle = '#4caf50';
+            ctx.shadowColor = '#4caf50';
+            ctx.shadowBlur = 8;
+            ctx.fillRect(px, py, size, size);
+            ctx.shadowBlur = 0; // reset
+
+            // Optional: show FPS
+            if (showFPS) {
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '14px monospace';
+                ctx.fillText(`FPS: ${fpsDisplay}`, 8, 20);
+            }
+        }
+
+        // ----- Game Loop -----
+        ivank.loop(function(timestamp) {
+            // FPS calculation
+            fpsCounter++;
+            if (timestamp - lastFPSTime >= 1000) {
+                fpsDisplay = fpsCounter;
+                fpsCounter = 0;
+                lastFPSTime = timestamp;
+            }
+            drawGrid();
+        });
+
+        // ----- Initial Message -----
+        messageText.textContent = 'Tap adjacent tile to move';
+    </script>
+</body>
+</html>
